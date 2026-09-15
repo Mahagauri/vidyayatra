@@ -1,32 +1,62 @@
 import { TaskItem } from '../types';
 
 export function clientFallbackSplitter(description: string): TaskItem[] {
-  const lines = description
-    .split(/[\n,;]+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 2);
+  // First normalize and split on common conjunction transitions like "and then", "then", "after that", "also", newlines, semicolons
+  let rawParts: string[] = [];
+  
+  // Split on newlines and semicolons first
+  const initialBlocks = description.split(/[\n;]+/);
 
-  const taskTitles = lines.length > 0 ? lines : [description.trim() || 'Daily Practice Session'];
+  for (const block of initialBlocks) {
+    // Split on conjunctions like "and then", "after which", "also", "and also"
+    const subParts = block
+      .split(/\s+(?:and\s+then|then|after\s+that|also|and\s+also|\band\b(?=\s+(?:chant|study|solve|complete|do|read|revise|meditate|workout|exercise|practice)))\s+/i)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 2);
+    
+    if (subParts.length > 0) {
+      rawParts.push(...subParts);
+    } else if (block.trim().length > 2) {
+      rawParts.push(block.trim());
+    }
+  }
+
+  const taskTitles = rawParts.length > 0 ? rawParts : [description.trim() || 'Daily Practice Session'];
 
   return taskTitles.map((line, idx) => {
+    // Clean up leading/trailing punctuation or connectors
+    const cleanTitle = line.replace(/^[\s\-•*]+/, '').trim();
     const isStudy =
-      /study|read|revise|learn|chapter|exam|practice|notes|vocab|history|math|physics|chemistry|biology|code|program|exercise|algorithm|solve|essay|mechanics/i.test(
-        line
+      /study|read|revise|learn|chapter|exam|practice|notes|vocab|history|math|physics|chemistry|biology|code|program|exercise|algorithm|solve|essay|mechanics|leetcode|dsa/i.test(
+        cleanTitle
       );
+    const isMantraOrHabit =
+      /chant|mantra|meditat|japa|walk|sleep|water|gym|workout|clean|cook|pray|puja|breath/i.test(cleanTitle);
+
+    let category = 'Daily Action';
+    if (isStudy) category = 'Study Trial';
+    if (isMantraOrHabit) category = 'Sadhana & Vitality';
+
     return {
       id: `task-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
-      title: line.charAt(0).toUpperCase() + line.slice(1),
+      title: cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1),
       type: isStudy ? ('study' as const) : ('habit' as const),
-      category: isStudy ? 'Study Trial' : 'Daily Action',
+      category,
       estimatedMinutes: isStudy ? 45 : 20,
-      xpReward: isStudy ? 100 : 50,
+      xpReward: isStudy ? 100 : 60,
       status: 'pending' as const,
-      subtasks: [
-        { id: `sub-${Date.now()}-${idx}-1`, text: 'Set up focused sanctuary', done: false },
-        { id: `sub-${Date.now()}-${idx}-2`, text: 'Execute core objective with deep attention', done: false },
-        { id: `sub-${Date.now()}-${idx}-3`, text: 'Consolidate takeaways and reflections', done: false },
-      ],
-      quizPromptHint: isStudy ? `Core principles and practical problem solving in ${line}` : '',
+      subtasks: isStudy
+        ? [
+            { id: `sub-${Date.now()}-${idx}-1`, text: 'Understand problem & constraints', done: false },
+            { id: `sub-${Date.now()}-${idx}-2`, text: 'Implement & verify optimal solution', done: false },
+            { id: `sub-${Date.now()}-${idx}-3`, text: 'Review time & space complexity', done: false },
+          ]
+        : [
+            { id: `sub-${Date.now()}-${idx}-1`, text: 'Find a calm, uninterrupted posture', done: false },
+            { id: `sub-${Date.now()}-${idx}-2`, text: 'Focus mind and complete recitation with devotion', done: false },
+            { id: `sub-${Date.now()}-${idx}-3`, text: 'Pause in silent contemplation', done: false },
+          ],
+      quizPromptHint: isStudy ? `Key problem solving patterns and algorithms in ${cleanTitle}` : '',
     };
   });
 }

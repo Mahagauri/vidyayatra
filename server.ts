@@ -123,17 +123,22 @@ app.post('/api/decompose-day', async (req: Request, res: Response) => {
       return;
     }
 
-    const prompt = `You are the VidyaYatra task decomposition sage. The user is a dedicated student who describes their intended daily plan:
+    const prompt = `You are the VidyaYatra task decomposition sage. The user describes their intended daily plan:
 "${description}"
 
-Analyze their text and break it down into realistic, actionable tasks.
-For each task:
-- Categorize type strictly as either "study" (for academic learning, revision, reading, coding, memorizing, practicing topics that can be tested with a quiz) or "habit" (for physical chores, workouts, laundry, errands, routines which only require honest self-check).
-- Assign an appropriate category name (e.g. "Organic Chemistry", "Vocabulary", "Mathematics", "Physical Wellness", "Life Dharma", "Code Craft").
-- Provide realistic estimatedMinutes (e.g. 25, 45, 60).
+CRITICAL RULE FOR TASK SPLITTING:
+- If the user's sentence mentions multiple activities, actions, or routines (e.g. "complete leetcode problem before sleeping and then chant 32 durga mantra", or "revise physics chapter 4, run 5km, read 10 pages"), you MUST separate them into DISTINCT individual tasks in the "tasks" array. NEVER merge separate activities into one combined task title.
+- Distinguish study/academic work from spiritual/habit/wellness rituals.
+
+For each individual task:
+- Categorize type strictly as either:
+  * "study" (for academic learning, revision, reading, coding/LeetCode, memorizing, practicing concepts testable with a quiz)
+  * "habit" (for chanting, japa, meditation, physical chores, workouts, routines which require honest self-reflection/check).
+- Assign an appropriate category name (e.g. "DSA & Code Craft", "Sadhana & Meditation", "Mathematics", "Physical Wellness", "Life Dharma").
+- Provide realistic estimatedMinutes (e.g. 20, 30, 45, 60).
 - Assign an XP reward based on depth (40 to 150 XP).
-- Include 2-3 quick actionable checklist subtasks.
-- If type is "study", provide a quizPromptHint specifying what specific factual or conceptual knowledge from this task should be tested.
+- Include 2-3 tailored actionable checklist subtasks.
+- If type is "study", provide a quizPromptHint specifying what specific concepts from this task should be tested.
 
 Respond STRICTLY with valid JSON matching this schema:
 {
@@ -305,4 +310,3 @@ if (!process.env.VERCEL) {
 }
 
 export default app;
-
