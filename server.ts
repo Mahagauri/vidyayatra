@@ -29,30 +29,53 @@ function getGeminiClient(): GoogleGenAI | null {
 
 // Fallback task splitter
 function fallbackSplitter(description: string) {
-  const lines = description
-    .split(/[\n,;]+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 2);
+  let rawParts: string[] = [];
+  const initialBlocks = description.split(/[\n;]+/);
 
-  return lines.map((line, idx) => {
+  for (const block of initialBlocks) {
+    const subParts = block
+      .split(/\s+(?:and\s+then|then|after\s+that|also|and\s+also|\band\b(?=\s+(?:chant|study|solve|complete|do|read|revise|meditate|workout|exercise|practice)))\s+/i)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 2);
+    
+    if (subParts.length > 0) {
+      rawParts.push(...subParts);
+    } else if (block.trim().length > 2) {
+      rawParts.push(block.trim());
+    }
+  }
+
+  const taskTitles = rawParts.length > 0 ? rawParts : [description.trim() || 'Daily Practice Session'];
+
+  return taskTitles.map((line, idx) => {
+    const cleanTitle = line.replace(/^[\s\-•*]+/, '').trim();
     const isStudy =
-      /study|read|revise|learn|chapter|exam|practice|notes|vocab|history|math|physics|chemistry|biology|code|program|exercise 1|algorithm/i.test(
-        line
+      /study|read|revise|learn|chapter|exam|practice|notes|vocab|history|math|physics|chemistry|biology|code|program|exercise|algorithm|solve|essay|mechanics|leetcode|dsa/i.test(
+        cleanTitle
       );
+    const isMantraOrHabit =
+      /chant|mantra|meditat|japa|walk|sleep|water|gym|workout|clean|cook|pray|puja|breath/i.test(cleanTitle);
+
     return {
       id: `task-${Date.now()}-${idx}`,
-      title: line.charAt(0).toUpperCase() + line.slice(1),
+      title: cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1),
       type: isStudy ? ('study' as const) : ('habit' as const),
-      category: isStudy ? 'Study Trial' : 'Daily Action',
+      category: isStudy ? 'Study Trial' : (isMantraOrHabit ? 'Sadhana & Vitality' : 'Daily Action'),
       estimatedMinutes: isStudy ? 45 : 20,
-      xpReward: isStudy ? 100 : 50,
-      subtasks: [
-        'Prepare focus environment',
-        'Complete core objective',
-        'Review key takeaways',
-      ],
+      xpReward: isStudy ? 100 : 60,
+      subtasks: isStudy
+        ? [
+            'Understand problem & constraints',
+            'Implement & verify optimal solution',
+            'Review time & space complexity',
+          ]
+        : [
+            'Find a calm, uninterrupted posture',
+            'Focus mind and complete recitation with devotion',
+            'Pause in silent contemplation',
+          ],
       quizPromptHint: isStudy
-        ? `Concepts and problem-solving relating to ${line}`
+        ? `Key concepts and problem solving in ${cleanTitle}`
         : '',
     };
   });
