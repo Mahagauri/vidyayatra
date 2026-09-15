@@ -150,13 +150,26 @@ Respond STRICTLY with valid JSON matching this schema:
   ]
 }`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-      },
-    });
+    const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    let response;
+    try {
+      response = await ai.models.generateContent({
+        model: modelName,
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+        },
+      });
+    } catch (mErr) {
+      console.warn(`Model ${modelName} failed, retrying with gemini-2.5-flash:`, mErr);
+      response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+        },
+      });
+    }
 
     const text = response.text;
     if (!text) {
@@ -223,13 +236,26 @@ Respond STRICTLY with valid JSON matching this schema:
   ]
 }`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-      },
-    });
+    const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    let response;
+    try {
+      response = await ai.models.generateContent({
+        model: modelName,
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+        },
+      });
+    } catch (mErr) {
+      console.warn(`Model ${modelName} failed in quiz, retrying with gemini-2.5-flash:`, mErr);
+      response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+        },
+      });
+    }
 
     const text = response.text;
     if (!text) {
@@ -274,4 +300,9 @@ async function startServer() {
   });
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export default app;
+

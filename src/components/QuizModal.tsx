@@ -12,6 +12,7 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { QuizQuestion, TaskItem } from '../types';
+import { clientFallbackQuiz } from '../utils/decomposer';
 
 interface QuizModalProps {
   task: TaskItem;
@@ -56,20 +57,20 @@ export const QuizModal: React.FC<QuizModalProps> = ({
         }),
       });
 
-      if (!res.ok) {
-        throw new Error('Failed to generate verification quiz');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.questions) && data.questions.length > 0) {
+          setQuestions(data.questions);
+          setUserAnswers(new Array(data.questions.length).fill(-1));
+          return;
+        }
       }
-
-      const data = await res.json();
-      if (Array.isArray(data.questions) && data.questions.length > 0) {
-        setQuestions(data.questions);
-        setUserAnswers(new Array(data.questions.length).fill(-1));
-      } else {
-        throw new Error('Empty quiz returned');
-      }
+      throw new Error('API returned unparseable quiz');
     } catch (err: any) {
-      console.error('Quiz loading error:', err);
-      setError('Could not prepare quiz. Please try again.');
+      console.warn('Backend quiz route unavailable, loading smart fallback quiz:', err);
+      const fallbackQuestions = clientFallbackQuiz(task.title);
+      setQuestions(fallbackQuestions);
+      setUserAnswers(new Array(fallbackQuestions.length).fill(-1));
     } finally {
       setLoading(false);
     }

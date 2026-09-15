@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Sparkles, Plus, Compass, BookOpen, CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
 import { TaskItem, TaskType } from '../types';
+import { clientFallbackSplitter } from '../utils/decomposer';
 
 interface DayInputSectionProps {
   onTasksGenerated: (newTasks: TaskItem[]) => void;
@@ -39,38 +40,42 @@ export const DayInputSection: React.FC<DayInputSectionProps> = ({
         body: JSON.stringify({ description: text }),
       });
 
-      if (!res.ok) {
-        throw new Error('Failed to decompose day');
-      }
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.tasks) && data.tasks.length > 0) {
+          const mappedTasks: TaskItem[] = data.tasks.map((t: any, idx: number) => ({
+            id: `task-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+            title: t.title || 'Untitled Task',
+            type: t.type === 'habit' ? 'habit' : 'study',
+            category: t.category || (t.type === 'study' ? 'Study Trial' : 'Action'),
+            estimatedMinutes: Number(t.estimatedMinutes) || 30,
+            xpReward: Number(t.xpReward) || (t.type === 'study' ? 100 : 50),
+            status: 'pending' as const,
+            subtasks: Array.isArray(t.subtasks)
+              ? t.subtasks.map((sub: string, sIdx: number) => ({
+                  id: `sub-${Date.now()}-${sIdx}`,
+                  text: typeof sub === 'string' ? sub : String(sub),
+                  done: false,
+                }))
+              : [
+                  { id: `sub-${Date.now()}-1`, text: 'Prepare study sanctuary', done: false },
+                  { id: `sub-${Date.now()}-2`, text: 'Complete core objective', done: false },
+                ],
+            quizPromptHint: t.quizPromptHint || '',
+          }));
 
-      const data = await res.json();
-      if (Array.isArray(data.tasks) && data.tasks.length > 0) {
-        const mappedTasks: TaskItem[] = data.tasks.map((t: any, idx: number) => ({
-          id: `task-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
-          title: t.title || 'Untitled Task',
-          type: t.type === 'habit' ? 'habit' : 'study',
-          category: t.category || (t.type === 'study' ? 'Study Trial' : 'Action'),
-          estimatedMinutes: Number(t.estimatedMinutes) || 30,
-          xpReward: Number(t.xpReward) || (t.type === 'study' ? 100 : 50),
-          status: 'pending' as const,
-          subtasks: Array.isArray(t.subtasks)
-            ? t.subtasks.map((sub: string, sIdx: number) => ({
-                id: `sub-${Date.now()}-${sIdx}`,
-                text: typeof sub === 'string' ? sub : String(sub),
-                done: false,
-              }))
-            : [
-                { id: `sub-${Date.now()}-1`, text: 'Prepare study sanctuary', done: false },
-                { id: `sub-${Date.now()}-2`, text: 'Complete core objective', done: false },
-              ],
-          quizPromptHint: t.quizPromptHint || '',
-        }));
-
-        onTasksGenerated(mappedTasks);
-        setInputDescription('');
+          onTasksGenerated(mappedTasks);
+          setInputDescription('');
+          return;
+        }
       }
+      throw new Error('API returned unparseable or error response');
     } catch (err) {
-      console.error('Error decomposing day:', err);
+      console.warn('Backend AI route unavailable, using local decomposition:', err);
+      // Instant client-side fallback ensures button always fulfills user action
+      const localTasks = clientFallbackSplitter(text);
+      onTasksGenerated(localTasks);
+      setInputDescription('');
     } finally {
       setIsLoading(false);
     }
