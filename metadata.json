@@ -1,0 +1,6 @@
+{
+  "name": "VidyaYatra",
+  "description": "Gamified daily study journey with AI task decomposition, trial quizzes, and mythological wisdom encounters.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
