@@ -547,7 +547,7 @@ export default function App() {
         profile={profile}
       />
 
-      {/* Mythic Chronicle & Journal Modal */}
+   {/* Mythic Chronicle & Journal Modal */}
       <JournalModal
         isOpen={isHistoryOpen}
         onClose={() => setIsHistoryOpen(false)}

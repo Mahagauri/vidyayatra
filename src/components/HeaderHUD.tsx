@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Flame, BookOpen, Scroll, Volume2, VolumeX, Shield, Award } from 'lucide-react';
+import { Award, Flame, BookOpen, Scroll, Volume2, VolumeX } from 'lucide-react';
 import { UserProfile } from '../types';
 import { calculateLevel } from '../utils/storage';
 
