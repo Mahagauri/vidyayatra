@@ -14,6 +14,8 @@ export const INITIAL_PROFILE: UserProfile = {
   legendaryPresence: 15,
   discoveredFigures: [],
   soundEnabled: true,
+  omDroneEnabled: false,
+  omVolume: 0.22,
 };
 
 export const SAMPLE_TASKS: TaskItem[] = [

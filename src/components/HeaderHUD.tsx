@@ -7,6 +7,8 @@ interface HeaderHUDProps {
   profile: UserProfile;
   totalFiguresCount: number;
   onToggleSound: () => void;
+  onToggleOmDrone: () => void;
+  onChangeOmVolume: (volume: number) => void;
   onOpenCodex: () => void;
   onOpenHistory: () => void;
 }
@@ -15,12 +17,16 @@ export const HeaderHUD: React.FC<HeaderHUDProps> = ({
   profile,
   totalFiguresCount,
   onToggleSound,
+  onToggleOmDrone,
+  onChangeOmVolume,
   onOpenCodex,
   onOpenHistory,
 }) => {
   const { level, currentXp, nextLevelXp, title } = calculateLevel(profile.xp);
   const progressPercent = Math.min(100, Math.round((currentXp / nextLevelXp) * 100));
   const discoveredCount = profile.discoveredFigures.length;
+  const isOmActive = Boolean(profile.omDroneEnabled);
+  const omVol = profile.omVolume ?? 0.22;
 
   return (
     <header className="sticky top-0 z-30 border-b border-amber-500/20 bg-[#0c0817]/90 backdrop-blur-md shadow-[0_4px_25px_rgba(0,0,0,0.5)]">
@@ -103,13 +109,49 @@ export const HeaderHUD: React.FC<HeaderHUDProps> = ({
             <span className="text-[11px] font-medium hidden sm:inline">Chronicle</span>
           </button>
 
-          {/* Audio Toggle */}
+          {/* Sacred Om Ambient Drone Button */}
+          <div className="flex items-center gap-1.5 p-1 rounded-xl border border-amber-500/30 bg-stone-950/80 shadow-sm shadow-amber-950/40">
+            <button
+              id="toggle-om-drone-btn"
+              type="button"
+              onClick={onToggleOmDrone}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-serif font-bold transition-all cursor-pointer ${
+                isOmActive
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-stone-950 shadow-[0_0_12px_rgba(245,158,11,0.4)] animate-pulse'
+                  : 'bg-stone-900/90 hover:bg-stone-800 text-amber-200/80 hover:text-amber-300'
+              }`}
+              title={isOmActive ? 'Pause Sacred Om Background Drone' : 'Play Sacred Om (136.1 Hz Cosmic Octave Drone)'}
+              aria-label="Toggle Sacred Om Sound"
+            >
+              <span className="text-sm font-sans">ॐ</span>
+              <span className="font-sans text-[11px] font-semibold hidden sm:inline">
+                {isOmActive ? 'Om Active' : 'Om Drone'}
+              </span>
+            </button>
+
+            {isOmActive && (
+              <input
+                id="om-volume-slider"
+                type="range"
+                min="0.05"
+                max="0.6"
+                step="0.01"
+                value={omVol}
+                onChange={(e) => onChangeOmVolume(parseFloat(e.target.value))}
+                className="w-14 sm:w-16 h-1 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-amber-400 mr-1"
+                title={`Om Volume: ${Math.round(omVol * 100)}%`}
+                aria-label="Sacred Om Volume Slider"
+              />
+            )}
+          </div>
+
+          {/* Sound Effects / Chimes Toggle */}
           <button
             id="toggle-sound-btn"
             onClick={onToggleSound}
             className="p-2 rounded-xl border border-stone-800 bg-stone-950/70 hover:border-amber-500/30 text-stone-400 hover:text-amber-300 transition-colors cursor-pointer"
-            title={profile.soundEnabled ? 'Mute Chimes' : 'Unmute Chimes'}
-            aria-label="Sound Toggle"
+            title={profile.soundEnabled ? 'Mute Chimes & UI SFX' : 'Unmute Chimes & UI SFX'}
+            aria-label="Sound Effects Toggle"
           >
             {profile.soundEnabled ? (
               <Volume2 className="w-4 h-4 text-amber-400" />

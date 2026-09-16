@@ -51,6 +51,8 @@ export interface UserProfile {
     isFavorite?: boolean;
   }[];
   soundEnabled: boolean;
+  omDroneEnabled?: boolean;
+  omVolume?: number; // 0.0 to 1.0 (default 0.22)
 }
 
 export interface HistoryEntry {

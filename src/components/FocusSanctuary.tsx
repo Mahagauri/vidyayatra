@@ -24,6 +24,8 @@ interface FocusSanctuaryProps {
   onResetTimer: (seconds?: number) => void;
   onSetTimerDuration: (seconds: number) => void;
   profile: UserProfile;
+  onToggleOmDrone?: () => void;
+  onChangeOmVolume?: (volume: number) => void;
   onOpenCodex: () => void;
   onOpenHistory: () => void;
   completedTodayCount: number;
@@ -37,6 +39,8 @@ export const FocusSanctuary: React.FC<FocusSanctuaryProps> = ({
   onResetTimer,
   onSetTimerDuration,
   profile,
+  onToggleOmDrone,
+  onChangeOmVolume,
   onOpenCodex,
   onOpenHistory,
   completedTodayCount,
@@ -44,6 +48,8 @@ export const FocusSanctuary: React.FC<FocusSanctuaryProps> = ({
 }) => {
   const { level, currentXp, nextLevelXp, title } = calculateLevel(profile.xp);
   const xpPercent = Math.min(100, Math.round((currentXp / nextLevelXp) * 100));
+  const isOmActive = Boolean(profile.omDroneEnabled);
+  const omVol = profile.omVolume ?? 0.22;
 
   const mins = Math.floor(timerSeconds / 60);
   const secs = timerSeconds % 60;
@@ -148,6 +154,59 @@ export const FocusSanctuary: React.FC<FocusSanctuaryProps> = ({
             10m Respite
           </button>
         </div>
+
+        {/* Sacred Om Sound Ambient Controller in Sanctuary */}
+        {onToggleOmDrone && (
+          <div className="mt-4 pt-3 border-t border-amber-500/20 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-amber-400 font-serif font-bold text-sm">ॐ</span>
+                <div>
+                  <div className="text-xs font-semibold text-stone-200 flex items-center gap-1.5">
+                    <span>Sacred Om Drone</span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-950/70 border border-amber-500/30 text-amber-300">
+                      136.1 Hz
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-stone-400">
+                    Cosmic Earth resonance for deep study & meditation
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={onToggleOmDrone}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
+                  isOmActive
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-stone-950 font-bold shadow-[0_0_12px_rgba(245,158,11,0.4)]'
+                    : 'bg-stone-900 hover:bg-stone-850 text-amber-200 border border-amber-500/30'
+                }`}
+              >
+                {isOmActive ? 'Pause Om' : 'Play Om'}
+              </button>
+            </div>
+
+            {isOmActive && onChangeOmVolume && (
+              <div className="flex items-center gap-2 pt-1">
+                <span className="text-[10px] text-stone-400 font-mono">Volume</span>
+                <input
+                  type="range"
+                  min="0.05"
+                  max="0.6"
+                  step="0.01"
+                  value={omVol}
+                  onChange={(e) => onChangeOmVolume(parseFloat(e.target.value))}
+                  className="flex-1 h-1 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-amber-400"
+                  aria-label="Om Drone Volume"
+                />
+                <span className="text-[10px] text-amber-300/80 font-mono w-7 text-right">
+                  {Math.round(omVol * 100)}%
+                </span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 2. Legendary Presence Resonance & Aura Chamber */}

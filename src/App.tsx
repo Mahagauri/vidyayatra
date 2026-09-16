@@ -26,7 +26,7 @@ import {
   SAMPLE_TASKS,
 } from './utils/storage';
 import { MYTHOLOGICAL_FIGURES, rollRandomFigure } from './data/mythology';
-import { playTap, playCelestialChord } from './utils/audio';
+import { playTap, playCelestialChord, startOmAmbient, stopOmAmbient, setOmVolume } from './utils/audio';
 
 import { HeaderHUD } from './components/HeaderHUD';
 import { DayInputSection } from './components/DayInputSection';
@@ -88,6 +88,37 @@ export default function App() {
       if (interval) clearInterval(interval);
     };
   }, [isTimerRunning, timerSeconds, profile.soundEnabled]);
+
+  // Sacred Om Ambient Drone synchronization
+  useEffect(() => {
+    if (profile.omDroneEnabled) {
+      startOmAmbient(profile.omVolume ?? 0.22);
+    } else {
+      stopOmAmbient();
+    }
+    return () => {
+      // Clean up when unmounting
+      stopOmAmbient(0.8);
+    };
+  }, [profile.omDroneEnabled]);
+
+  const handleToggleOmDrone = () => {
+    const nextState = !profile.omDroneEnabled;
+    const vol = profile.omVolume ?? 0.22;
+    if (nextState) {
+      startOmAmbient(vol);
+      setToastMessage('Sacred Om drone activated (136.1 Hz Cosmic Octave)');
+    } else {
+      stopOmAmbient();
+      setToastMessage('Sacred Om drone paused');
+    }
+    setProfile((prev) => ({ ...prev, omDroneEnabled: nextState }));
+  };
+
+  const handleChangeOmVolume = (newVol: number) => {
+    setOmVolume(newVol);
+    setProfile((prev) => ({ ...prev, omVolume: newVol }));
+  };
 
   // Task generation from natural language input
   const handleTasksGenerated = (newTasks: TaskItem[]) => {
@@ -373,6 +404,8 @@ export default function App() {
         onToggleSound={() =>
           setProfile((prev) => ({ ...prev, soundEnabled: !prev.soundEnabled }))
         }
+        onToggleOmDrone={handleToggleOmDrone}
+        onChangeOmVolume={handleChangeOmVolume}
         onOpenCodex={() => setIsCodexOpen(true)}
         onOpenHistory={() => setIsHistoryOpen(true)}
       />
@@ -417,6 +450,8 @@ export default function App() {
                 setTimerSeconds(secs);
               }}
               profile={profile}
+              onToggleOmDrone={handleToggleOmDrone}
+              onChangeOmVolume={handleChangeOmVolume}
               onOpenCodex={() => setIsCodexOpen(true)}
               onOpenHistory={() => setIsHistoryOpen(true)}
               completedTodayCount={completedTodayCount}

@@ -335,3 +335,180 @@ export function startEncounterChimeLoop(tier = 'common'): () => void {
   };
 }
 
+/**
+ * ============================================================================
+ * SACRED OM (PRANAVA) AMBIENT AUDIO ENGINE
+ * ============================================================================
+ * Procedurally synthesized Cosmic Octave Om vibration tuned to 136.10 Hz
+ * (the fundamental Earth frequency / Sadja in Indian Classical music), layered
+ * with rich warm harmonics (272.2 Hz, 408.3 Hz, 544.4 Hz), subtle binaural chorus,
+ * and a deep meditative breathing LFO volume swell.
+ * 
+ * Runs continuously in the background with zero external network audio files,
+ * zero bandwidth, and seamless fading.
+ */
+
+interface OmDroneState {
+  masterGain: GainNode;
+  oscillators: OscillatorNode[];
+  lfoGain: GainNode;
+  lfoOsc: OscillatorNode;
+  intervalTimer: ReturnType<typeof setInterval> | null;
+}
+
+let activeOmDrone: OmDroneState | null = null;
+let targetOmVolume = 0.22; // Gentle, relaxing volume suitable for study
+
+export function isOmPlaying(): boolean {
+  return activeOmDrone !== null;
+}
+
+export function setOmVolume(volume: number) {
+  targetOmVolume = Math.max(0, Math.min(1, volume));
+  if (activeOmDrone) {
+    const ctx = getAudioContext();
+    if (ctx) {
+      activeOmDrone.masterGain.gain.setTargetAtTime(targetOmVolume, ctx.currentTime, 0.2);
+    }
+  }
+}
+
+export function startOmAmbient(volume = targetOmVolume) {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    if (activeOmDrone) {
+      // Already running; simply ramp to target volume
+      setOmVolume(volume);
+      return;
+    }
+
+    const now = ctx.currentTime;
+    targetOmVolume = volume;
+
+    // Master drone gain with gentle 2.5 second fade-in
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(0.0001, now);
+    masterGain.gain.exponentialRampToValueAtTime(Math.max(0.001, targetOmVolume), now + 2.8);
+
+    // Warm Lowpass Filter (eliminates digital harshness, produces warm organic temple resonance)
+    const lowpass = ctx.createBiquadFilter();
+    lowpass.type = 'lowpass';
+    lowpass.frequency.setValueAtTime(680, now);
+    lowpass.Q.setValueAtTime(2.2, now);
+
+    // 136.10 Hz: The sacred frequency of Om (Cosmic Octave / Year of the Earth)
+    const fundamental = 136.1;
+
+    // Harmonics configuration:
+    // [Frequency, WaveType, Relative Gain, Stereo Pan, Fine Detune in Cents]
+    const voiceConfigs: Array<{
+      freq: number;
+      type: OscillatorType;
+      gain: number;
+      pan: number;
+      detune: number;
+    }> = [
+      // Deep sub-octave foundation (68.05 Hz)
+      { freq: fundamental * 0.5, type: 'sine', gain: 0.45, pan: 0, detune: 0 },
+      // Fundamental 136.1 Hz (Tanpura/Drone root)
+      { freq: fundamental, type: 'sine', gain: 0.65, pan: -0.25, detune: -2 },
+      { freq: fundamental, type: 'sine', gain: 0.65, pan: 0.25, detune: +2.5 },
+      // First harmonic 272.2 Hz (Octave overtone)
+      { freq: fundamental * 2, type: 'triangle', gain: 0.35, pan: -0.4, detune: +1 },
+      // Fifth harmonic 408.3 Hz (Pancham / Sacred 5th note)
+      { freq: fundamental * 3, type: 'sine', gain: 0.22, pan: 0.35, detune: -1.5 },
+      // High subtle vocal shimmer (A-U-M nasal resonance 544.4 Hz)
+      { freq: fundamental * 4, type: 'sine', gain: 0.12, pan: 0, detune: +0.8 },
+    ];
+
+    const oscillators: OscillatorNode[] = [];
+
+    voiceConfigs.forEach((cfg) => {
+      const osc = ctx.createOscillator();
+      const vGain = ctx.createGain();
+
+      osc.type = cfg.type;
+      osc.frequency.setValueAtTime(cfg.freq, now);
+      osc.detune.setValueAtTime(cfg.detune, now);
+      vGain.gain.setValueAtTime(cfg.gain, now);
+
+      osc.connect(vGain);
+
+      if (typeof ctx.createStereoPanner === 'function') {
+        const panner = ctx.createStereoPanner();
+        panner.pan.setValueAtTime(cfg.pan, now);
+        vGain.connect(panner);
+        panner.connect(lowpass);
+      } else {
+        vGain.connect(lowpass);
+      }
+
+      osc.start(now);
+      oscillators.push(osc);
+    });
+
+    // Meditative Breath LFO: very slow 0.08 Hz modulation (~12 second full respiratory cycle)
+    const lfoOsc = ctx.createOscillator();
+    const lfoGain = ctx.createGain();
+
+    lfoOsc.type = 'sine';
+    lfoOsc.frequency.setValueAtTime(0.08, now); // ~12s breath rhythm
+
+    // Modulation depth: subtle volume swell of ~25%
+    lfoGain.gain.setValueAtTime(0.2, now);
+
+    lfoOsc.connect(lfoGain.gain);
+    lfoOsc.start(now);
+
+    lowpass.connect(masterGain);
+    masterGain.connect(ctx.destination);
+
+    activeOmDrone = {
+      masterGain,
+      oscillators,
+      lfoGain,
+      lfoOsc,
+      intervalTimer: null,
+    };
+  } catch (err) {
+    console.debug('Failed to start Sacred Om drone:', err);
+  }
+}
+
+export function stopOmAmbient(fadeDuration = 2.0) {
+  if (!activeOmDrone) return;
+
+  try {
+    const ctx = getAudioContext();
+    const current = activeOmDrone;
+    activeOmDrone = null;
+
+    if (ctx) {
+      const now = ctx.currentTime;
+      current.masterGain.gain.setTargetAtTime(0.0001, now, fadeDuration / 3);
+
+      setTimeout(() => {
+        try {
+          current.oscillators.forEach((osc) => {
+            try {
+              osc.stop();
+              osc.disconnect();
+            } catch {
+              // already stopped
+            }
+          });
+          current.lfoOsc.stop();
+          current.lfoOsc.disconnect();
+          current.masterGain.disconnect();
+        } catch {
+          // cleanup
+        }
+      }, (fadeDuration + 0.3) * 1000);
+    }
+  } catch (err) {
+    console.debug('Error stopping Om drone:', err);
+  }
+}
+
