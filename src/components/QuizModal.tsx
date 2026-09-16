@@ -62,15 +62,18 @@ export const QuizModal: React.FC<QuizModalProps> = ({
         if (Array.isArray(data.questions) && data.questions.length > 0) {
           setQuestions(data.questions);
           setUserAnswers(new Array(data.questions.length).fill(-1));
+          setLoading(false);
           return;
         }
       }
-      throw new Error('API returned unparseable quiz');
-    } catch (err: any) {
-      console.warn('Backend quiz route unavailable, loading smart fallback quiz:', err);
-      const fallbackQuestions = clientFallbackQuiz(task.title);
-      setQuestions(fallbackQuestions);
-      setUserAnswers(new Array(fallbackQuestions.length).fill(-1));
+      // Fallback client quiz
+      const fallback = clientFallbackQuiz(task.title);
+      setQuestions(fallback);
+      setUserAnswers(new Array(fallback.length).fill(-1));
+    } catch {
+      const fallback = clientFallbackQuiz(task.title);
+      setQuestions(fallback);
+      setUserAnswers(new Array(fallback.length).fill(-1));
     } finally {
       setLoading(false);
     }
@@ -78,151 +81,125 @@ export const QuizModal: React.FC<QuizModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSelectOption = (qIdx: number, optIdx: number) => {
+  const handleSelectOption = (qIdx: number, optionIdx: number) => {
     if (isSubmitted) return;
-    const next = [...userAnswers];
-    next[qIdx] = optIdx;
-    setUserAnswers(next);
+    setUserAnswers((prev) => {
+      const updated = [...prev];
+      updated[qIdx] = optionIdx;
+      return updated;
+    });
   };
 
   const calculateScore = () => {
-    let score = 0;
+    let correct = 0;
     questions.forEach((q, idx) => {
       if (userAnswers[idx] === q.correctIndex) {
-        score++;
+        correct += 1;
       }
     });
-    return score;
+    return { score: correct, total: questions.length };
   };
 
-  const score = isSubmitted ? calculateScore() : 0;
-  const isPassed = isSubmitted && score >= Math.ceil(questions.length * 0.6); // 2 of 3
-  const allAnswered = userAnswers.every((ans) => ans !== -1);
+  const allAnswered = userAnswers.length > 0 && userAnswers.every((ans) => ans !== -1);
+  const scoreResult = isSubmitted ? calculateScore() : null;
+  const isPassed = scoreResult ? scoreResult.score >= Math.ceil(questions.length * 0.6) : false;
 
   const handleSubmit = () => {
+    if (!allAnswered) return;
     setIsSubmitted(true);
   };
 
-  const handleClaim = () => {
-    onQuizPassed(task.id, { score, total: questions.length });
+  const handleClaimVictory = () => {
+    if (scoreResult) {
+      onQuizPassed(task.id, scoreResult);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-2xl rounded-3xl border border-amber-500/30 bg-[#0d091a] shadow-2xl p-6 sm:p-7 overflow-hidden my-8 mythic-corner-brackets">
-        {/* Background ambient lighting */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-amber-600/15 rounded-full blur-3xl pointer-events-none -z-10" />
-
-        {/* Top bar */}
-        <div className="flex items-center justify-between border-b border-amber-500/20 pb-4 mb-5">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-amber-950/70 border border-amber-500/40 text-amber-400">
-              <BookOpen className="w-5 h-5" />
+      <div className="relative w-full max-w-2xl rounded-2xl border border-amber-500/30 bg-[#0f0a1c] p-6 shadow-2xl mythic-corner-brackets space-y-5 my-8">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 border-b border-amber-500/20 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300">
+              <BookOpen className="w-6 h-6" />
             </div>
             <div>
-              <span className="text-[10px] uppercase font-mono tracking-widest text-amber-400 font-semibold">
-                Verification Examination
-              </span>
-              <h2 className="text-base sm:text-lg font-serif font-bold text-stone-100 line-clamp-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-500/30 font-semibold">
+                  Study Trial Examination
+                </span>
+                <span className="text-xs text-amber-400 font-mono">
+                  +{task.xpReward} XP Reward
+                </span>
+              </div>
+              <h3 className="font-serif text-lg font-bold text-stone-100 mt-1">
                 {task.title}
-              </h2>
+              </h3>
             </div>
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-stone-400 hover:text-stone-200 hover:bg-stone-800 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-stone-400 hover:text-stone-200 hover:bg-stone-900 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Content Body */}
-        {loading ? (
-          <div className="py-16 text-center space-y-4">
-            <Loader2 className="w-9 h-9 mx-auto text-amber-400 animate-spin" />
-            <div className="space-y-1">
-              <h3 className="font-serif text-base font-bold text-stone-200">
-                Inscribing the Trial Questions...
-              </h3>
-              <p className="text-xs text-stone-400">
-                Formulating 3 specific questions to genuinely verify your study mastery.
-              </p>
-            </div>
+        {/* Loading State */}
+        {loading && (
+          <div className="py-16 text-center space-y-3">
+            <Loader2 className="w-8 h-8 text-amber-400 animate-spin mx-auto" />
+            <p className="font-serif text-amber-200 text-sm">
+              Summoning celestial verification queries...
+            </p>
+            <p className="text-xs text-stone-400">
+              Formulating diagnostic questions to prove your mastery.
+            </p>
           </div>
-        ) : error ? (
-          <div className="py-12 text-center space-y-4">
-            <HelpCircle className="w-8 h-8 mx-auto text-stone-500" />
-            <p className="text-sm text-stone-400">{error}</p>
-            <button
-              onClick={loadQuiz}
-              className="px-4 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-semibold inline-flex items-center gap-2 cursor-pointer"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              Retry Inscription
-            </button>
-          </div>
-        ) : (
+        )}
+
+        {/* Quiz Content */}
+        {!loading && questions.length > 0 && (
           <div className="space-y-6">
-            {/* Questions list */}
-            <div className="space-y-6 max-h-[58vh] overflow-y-auto pr-1">
+            <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2">
               {questions.map((q, qIdx) => {
                 const selectedOption = userAnswers[qIdx];
-                const isCorrect = isSubmitted && selectedOption === q.correctIndex;
-                const isWrong = isSubmitted && selectedOption !== q.correctIndex;
-
                 return (
                   <div
                     key={qIdx}
-                    className={`rounded-2xl border p-4 sm:p-5 transition-all ${
-                      !isSubmitted
-                        ? 'border-stone-800 bg-stone-950/60'
-                        : isCorrect
-                        ? 'border-emerald-500/40 bg-emerald-950/20'
-                        : 'border-red-500/30 bg-red-950/20'
-                    }`}
+                    className="p-4 rounded-xl bg-stone-950/70 border border-amber-500/20 space-y-3"
                   >
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <h4 className="text-sm sm:text-base font-medium text-stone-100 flex items-start gap-2">
-                        <span className="font-mono text-xs font-bold text-amber-400 bg-amber-950/80 px-2 py-0.5 rounded-md mt-0.5">
-                          Q{qIdx + 1}
-                        </span>
-                        <span>{q.question}</span>
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-amber-950/80 border border-amber-500/40 text-amber-300 text-xs font-mono font-bold shrink-0">
+                        {qIdx + 1}
+                      </span>
+                      <h4 className="text-sm font-medium text-stone-200 leading-snug pt-0.5">
+                        {q.question}
                       </h4>
-
-                      {isSubmitted && (
-                        <div className="shrink-0">
-                          {isCorrect ? (
-                            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                          ) : (
-                            <XCircle className="w-5 h-5 text-red-400" />
-                          )}
-                        </div>
-                      )}
                     </div>
 
-                    {/* Options */}
-                    <div className="grid grid-cols-1 gap-2 pt-1">
+                    {/* Options list */}
+                    <div className="space-y-2 pl-8">
                       {q.options.map((opt, optIdx) => {
                         const isChosen = selectedOption === optIdx;
-                        const isActualCorrect = isSubmitted && optIdx === q.correctIndex;
+                        const isCorrectAnswer = optIdx === q.correctIndex;
 
-                        let optClasses =
-                          'border-stone-800 bg-stone-900/60 hover:bg-stone-800 text-stone-300';
-                        if (!isSubmitted && isChosen) {
-                          optClasses =
-                            'border-amber-500 bg-amber-950/40 text-amber-100 ring-1 ring-amber-500/50';
-                        } else if (isSubmitted) {
-                          if (isActualCorrect) {
-                            optClasses =
-                              'border-emerald-500 bg-emerald-950/40 text-emerald-100 font-medium ring-1 ring-emerald-500/50';
-                          } else if (isChosen && !isActualCorrect) {
-                            optClasses =
-                              'border-red-500 bg-red-950/40 text-red-200 line-through';
-                          } else {
-                            optClasses = 'border-stone-800/60 bg-stone-950/40 text-stone-500 opacity-60';
+                        let borderClass = 'border-stone-800 hover:border-amber-500/40 bg-stone-900/60';
+                        let icon = null;
+
+                        if (isSubmitted) {
+                          if (isCorrectAnswer) {
+                            borderClass = 'border-emerald-500/80 bg-emerald-950/30 text-emerald-200';
+                            icon = <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />;
+                          } else if (isChosen && !isCorrectAnswer) {
+                            borderClass = 'border-red-500/80 bg-red-950/30 text-red-200';
+                            icon = <XCircle className="w-4 h-4 text-red-400 shrink-0" />;
                           }
+                        } else if (isChosen) {
+                          borderClass = 'border-amber-400 bg-amber-950/50 text-amber-200 shadow-[0_0_10px_rgba(245,158,11,0.2)]';
                         }
 
                         return (
@@ -230,23 +207,20 @@ export const QuizModal: React.FC<QuizModalProps> = ({
                             key={optIdx}
                             type="button"
                             onClick={() => handleSelectOption(qIdx, optIdx)}
-                            disabled={isSubmitted}
-                            className={`flex items-start gap-3 p-3 rounded-xl border text-left text-xs sm:text-sm transition-all cursor-pointer ${optClasses}`}
+                            className={`w-full text-left p-3 rounded-xl border text-xs sm:text-sm flex items-center justify-between gap-3 transition-all cursor-pointer ${borderClass}`}
                           >
-                            <span className="font-mono text-xs opacity-60 shrink-0 mt-0.5">
-                              {String.fromCharCode(65 + optIdx)}.
-                            </span>
-                            <span className="flex-1">{opt}</span>
+                            <span>{opt}</span>
+                            {icon}
                           </button>
                         );
                       })}
                     </div>
 
-                    {/* Explanation if submitted */}
+                    {/* Post-submission explanation */}
                     {isSubmitted && (
-                      <div className="mt-3 pt-3 border-t border-stone-800/80 text-xs text-stone-300 bg-stone-900/40 p-2.5 rounded-xl">
-                        <span className="font-semibold text-amber-300">Explanation: </span>
-                        <span>{q.explanation}</span>
+                      <div className="pl-8 pt-1 text-[11px] text-stone-400 leading-relaxed italic border-t border-stone-800 mt-2">
+                        <span className="font-semibold text-amber-300 not-italic">Note: </span>
+                        {q.explanation}
                       </div>
                     )}
                   </div>
@@ -255,48 +229,47 @@ export const QuizModal: React.FC<QuizModalProps> = ({
             </div>
 
             {/* Bottom Actions */}
-            <div className="border-t border-stone-800 pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              {isSubmitted ? (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-amber-500/20">
+              {isSubmitted && scoreResult ? (
                 <>
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`text-sm font-bold font-mono px-3 py-1.5 rounded-xl border ${
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-serif font-bold text-amber-200">
+                      Score: {scoreResult.score} / {scoreResult.total}
+                    </span>
+                    <span
+                      className={`text-[11px] font-mono px-2 py-0.5 rounded ${
                         isPassed
-                          ? 'border-emerald-500/40 bg-emerald-950/50 text-emerald-300'
-                          : 'border-red-500/40 bg-red-950/50 text-red-300'
+                          ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40'
+                          : 'bg-red-950 text-red-300 border border-red-500/40'
                       }`}
                     >
-                      Score: {score} / {questions.length} (
-                      {Math.round((score / questions.length) * 100)}%)
-                    </div>
-                    <span className="text-xs text-stone-400">
-                      {isPassed
-                        ? 'Mastery Proven. Sacred Wisdom awaits.'
-                        : 'Review the explanations and attempt again.'}
+                      {isPassed ? 'Trial Passed' : 'Need 60% to Pass'}
                     </span>
                   </div>
 
-                  {isPassed ? (
-                    <button
-                      type="button"
-                      id="claim-wisdom-btn"
-                      onClick={handleClaim}
-                      className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-stone-950 font-bold text-xs sm:text-sm shadow-lg shadow-amber-950/40 cursor-pointer transition-all"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      <span>Manifest Sacred Encounter</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={loadQuiz}
-                      className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-semibold text-xs cursor-pointer transition-colors"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Retry Verification</span>
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {!isPassed && (
+                      <button
+                        type="button"
+                        onClick={loadQuiz}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-stone-800 text-stone-300 hover:text-white text-xs cursor-pointer"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Retry Trial</span>
+                      </button>
+                    )}
+
+                    {isPassed && (
+                      <button
+                        type="button"
+                        onClick={handleClaimVictory}
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-bold text-xs shadow-md cursor-pointer transition-all"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        <span>Claim XP &amp; Summon Wisdom</span>
+                      </button>
+                    )}
+                  </div>
                 </>
               ) : (
                 <>
@@ -322,3 +295,5 @@ export const QuizModal: React.FC<QuizModalProps> = ({
     </div>
   );
 };
+
+export default QuizModal;

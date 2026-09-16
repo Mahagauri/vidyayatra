@@ -1,6 +1,7 @@
-import { GoogleGenAI } from '@google/genai';
+import { TaskItem } from '../types';
 
-function fallbackSplitter(description: string) {
+export function clientFallbackSplitter(description: string): TaskItem[] {
+  // Split on newlines, semicolons, and conjunctions
   let rawParts: string[] = [];
   const initialBlocks = description.split(/[\n;]+/);
 
@@ -28,155 +29,68 @@ function fallbackSplitter(description: string) {
     const isMantraOrHabit =
       /chant|mantra|meditat|japa|walk|sleep|water|gym|workout|clean|cook|pray|puja|breath/i.test(cleanTitle);
 
+    let category = 'Daily Action';
+    if (isStudy) category = 'Study Trial';
+    if (isMantraOrHabit) category = 'Sadhana & Vitality';
+
     return {
       id: `task-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
       title: cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1),
-      type: isStudy ? 'study' : 'habit',
-      category: isStudy ? 'Study Trial' : (isMantraOrHabit ? 'Sadhana & Vitality' : 'Daily Action'),
+      type: isStudy ? ('study' as const) : ('habit' as const),
+      category,
       estimatedMinutes: isStudy ? 45 : 20,
       xpReward: isStudy ? 100 : 60,
+      status: 'pending' as const,
       subtasks: isStudy
         ? [
-            'Understand problem & constraints',
-            'Implement & verify optimal solution',
-            'Review time & space complexity',
+            { id: `sub-${Date.now()}-${idx}-1`, text: 'Understand problem & constraints', done: false },
+            { id: `sub-${Date.now()}-${idx}-2`, text: 'Implement & verify optimal solution', done: false },
+            { id: `sub-${Date.now()}-${idx}-3`, text: 'Review time & space complexity', done: false },
           ]
         : [
-            'Find a calm, uninterrupted posture',
-            'Focus mind and complete recitation with devotion',
-            'Pause in silent contemplation',
+            { id: `sub-${Date.now()}-${idx}-1`, text: 'Find a calm, uninterrupted posture', done: false },
+            { id: `sub-${Date.now()}-${idx}-2`, text: 'Focus mind and complete recitation with devotion', done: false },
+            { id: `sub-${Date.now()}-${idx}-3`, text: 'Pause in silent contemplation', done: false },
           ],
-      quizPromptHint: isStudy ? `Concepts and problem-solving relating to ${cleanTitle}` : '',
+      quizPromptHint: isStudy ? `Key problem solving patterns and algorithms in ${cleanTitle}` : '',
     };
   });
 }
 
-export default async function handler(req: any, res: any) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-
-  if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method Not Allowed' });
-    return;
-  }
-
-  try {
-    let body = req.body;
-    if (typeof body === 'string') {
-      try {
-        body = JSON.parse(body);
-      } catch (e) {
-        body = {};
-      }
-    }
-    body = body || {};
-
-    const description = body.description;
-    if (!description || typeof description !== 'string' || !description.trim()) {
-      res.status(400).json({ error: 'Description is required' });
-      return;
-    }
-
-    if (!process.env.GEMINI_API_KEY) {
-      console.log('GEMINI_API_KEY not set on server, using fallback');
-      res.status(200).json({ tasks: fallbackSplitter(description) });
-      return;
-    }
-
-    const ai = new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY,
-    });
-
-    const prompt = `You are the VidyaYatra task decomposition sage. The user describes their intended daily plan:
-"${description}"
-
-CRITICAL RULE FOR TASK SPLITTING:
-- If the user's sentence mentions multiple activities, actions, or routines (e.g. "complete leetcode problem before sleeping and then chant 32 durga mantra", or "revise physics chapter 4, run 5km, read 10 pages"), you MUST separate them into DISTINCT individual tasks in the "tasks" array. NEVER merge separate activities into one combined task title.
-- Distinguish study/academic work from spiritual/habit/wellness rituals.
-
-For each individual task:
-- Categorize type strictly as either:
-  * "study" (for academic learning, revision, reading, coding/LeetCode, memorizing, practicing concepts testable with a quiz)
-  * "habit" (for chanting, japa, meditation, physical chores, workouts, routines which require honest self-reflection/check).
-- Assign an appropriate category name (e.g. "DSA & Code Craft", "Sadhana & Meditation", "Mathematics", "Physical Wellness", "Life Dharma").
-- Provide realistic estimatedMinutes (e.g. 20, 30, 45, 60).
-- Assign an XP reward based on depth (40 to 150 XP).
-- Include 2-3 tailored actionable checklist subtasks.
-- If type is "study", provide a quizPromptHint specifying what specific concepts from this task should be tested.
-
-Respond STRICTLY with valid JSON matching this schema:
-{
-  "tasks": [
+export function clientFallbackQuiz(taskTitle: string) {
+  return [
     {
-      "title": "Task title",
-      "type": "study" | "habit",
-      "category": "Category name",
-      "estimatedMinutes": 45,
-      "xpReward": 100,
-      "subtasks": ["subtask 1", "subtask 2"],
-      "quizPromptHint": "specific topics/concepts"
-    }
-  ]
-}`;
-
-    const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-    let response;
-    try {
-      response = await ai.models.generateContent({
-        model: modelName,
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-        },
-      });
-    } catch (modelErr) {
-      console.warn(`Primary model ${modelName} call failed, retrying with gemini-2.5-flash:`, modelErr);
-      response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-        },
-      });
-    }
-
-    const text = response.text;
-    if (!text) {
-      res.status(200).json({ tasks: fallbackSplitter(description) });
-      return;
-    }
-
-    const parsed = JSON.parse(text);
-    if (Array.isArray(parsed.tasks) && parsed.tasks.length > 0) {
-      const enriched = parsed.tasks.map((t: any, idx: number) => ({
-        ...t,
-        id: `task-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
-        type: t.type === 'habit' ? 'habit' : 'study',
-        estimatedMinutes: Number(t.estimatedMinutes) || 30,
-        xpReward: Number(t.xpReward) || (t.type === 'study' ? 100 : 50),
-        subtasks: Array.isArray(t.subtasks) ? t.subtasks : [],
-        quizPromptHint: t.quizPromptHint || '',
-      }));
-      res.status(200).json({ tasks: enriched });
-      return;
-    }
-
-    res.status(200).json({ tasks: fallbackSplitter(description) });
-  } catch (error) {
-    console.error('Error in /api/decompose-day:', error);
-    let desc = '';
-    try {
-      const b = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      desc = b?.description || '';
-    } catch (e) {
-      desc = '';
-    }
-    res.status(200).json({ tasks: fallbackSplitter(desc) });
-  }
+      question: `What was the central concept or core principle you mastered in "${taskTitle}"?`,
+      options: [
+        'The foundational definition, core mechanisms, and practical application',
+        'Superficial memorization without understanding underlying mechanisms',
+        'Skipped the core derivations and only skimmed chapter summary lines',
+        'Unrelated peripheral trivia that has no bearing on actual mastery',
+      ],
+      correctIndex: 0,
+      explanation: 'True mastery requires internalizing the fundamental mechanism and foundational definitions.',
+    },
+    {
+      question: `When applying what you reviewed in "${taskTitle}", what is the most effective approach for durable retention?`,
+      options: [
+        'Passive rereading immediately before an exam',
+        'Active recall, spaced self-testing, and deliberate problem solving',
+        'Never revisiting or reviewing the concepts after today',
+        'Assuming familiarity is identical to complete comprehension',
+      ],
+      correctIndex: 1,
+      explanation: 'Active recall and spaced problem solving cement knowledge into permanent long-term memory.',
+    },
+    {
+      question: `Which obstacle did you overcome during this study session for "${taskTitle}"?`,
+      options: [
+        'Maintaining sustained single-pointed concentration and overcoming distraction',
+        'Procrastinating until study momentum and energy were lost',
+        'Abandoning the study trial prematurely before testing understanding',
+        'Fragmenting attention with social feeds and notifications',
+      ],
+      correctIndex: 0,
+      explanation: 'Sustained single-pointed attention (Ekagrata) is the hallmark of true progress.',
+    },
+  ];
 }

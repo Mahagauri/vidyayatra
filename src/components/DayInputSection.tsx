@@ -44,7 +44,6 @@ export const DayInputSection: React.FC<DayInputSectionProps> = ({
         const data = await res.json();
         if (Array.isArray(data.tasks) && data.tasks.length > 0) {
           const localCheck = clientFallbackSplitter(text);
-          // If server mistakenly returned only 1 task for multiple activities, prefer smart split
           const tasksToUse: TaskItem[] =
             data.tasks.length === 1 && localCheck.length > 1
               ? localCheck
@@ -58,28 +57,27 @@ export const DayInputSection: React.FC<DayInputSectionProps> = ({
                   status: 'pending' as const,
                   subtasks: Array.isArray(t.subtasks)
                     ? t.subtasks.map((sub: string, sIdx: number) => ({
-                        id: `sub-${Date.now()}-${sIdx}`,
-                        text: typeof sub === 'string' ? sub : String(sub),
+                        id: `sub-${Date.now()}-${idx}-${sIdx}`,
+                        text: typeof sub === 'string' ? sub : (sub as any).text,
                         done: false,
                       }))
-                    : [
-                        { id: `sub-${Date.now()}-1`, text: 'Prepare study sanctuary', done: false },
-                        { id: `sub-${Date.now()}-2`, text: 'Complete core objective', done: false },
-                      ],
+                    : [],
                   quizPromptHint: t.quizPromptHint || '',
                 }));
 
           onTasksGenerated(tasksToUse);
           setInputDescription('');
+          setIsLoading(false);
           return;
         }
       }
-      throw new Error('API returned unparseable or error response');
-    } catch (err) {
-      console.warn('Backend AI route unavailable, using local decomposition:', err);
-      // Instant client-side fallback ensures button always fulfills user action
-      const localTasks = clientFallbackSplitter(text);
-      onTasksGenerated(localTasks);
+      // Fallback decomposition
+      const fallbackTasks = clientFallbackSplitter(text);
+      onTasksGenerated(fallbackTasks);
+      setInputDescription('');
+    } catch {
+      const fallbackTasks = clientFallbackSplitter(text);
+      onTasksGenerated(fallbackTasks);
       setInputDescription('');
     } finally {
       setIsLoading(false);
@@ -93,15 +91,14 @@ export const DayInputSection: React.FC<DayInputSectionProps> = ({
     onAddTaskManually({
       title: manualTitle.trim(),
       type: manualType,
-      category: manualCategory.trim() || (manualType === 'study' ? 'Study Trial' : 'Habit'),
-      estimatedMinutes: manualMinutes,
+      category: manualCategory.trim() || 'General',
+      estimatedMinutes: Number(manualMinutes) || 30,
       xpReward: manualType === 'study' ? 100 : 50,
       subtasks: [
-        { id: `sub-${Date.now()}-1`, text: 'Initial preparation', done: false },
-        { id: `sub-${Date.now()}-2`, text: 'Fulfill primary intent', done: false },
-        { id: `sub-${Date.now()}-3`, text: 'Consolidate insight', done: false },
+        { id: `sub-${Date.now()}-1`, text: 'Initiate deliberate focus', done: false },
+        { id: `sub-${Date.now()}-2`, text: 'Complete core milestone', done: false },
       ],
-      quizPromptHint: manualType === 'study' ? `Mastery of ${manualTitle}` : '',
+      quizPromptHint: manualTitle.trim(),
     });
 
     setManualTitle('');
@@ -109,161 +106,152 @@ export const DayInputSection: React.FC<DayInputSectionProps> = ({
   };
 
   return (
-    <div className="mythic-card mythic-corner-brackets rounded-2xl p-5 sm:p-6 shadow-2xl relative overflow-hidden">
-      {/* Subtle background glow */}
-      <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none -z-10" />
-      <div className="absolute bottom-0 left-0 w-60 h-60 bg-purple-900/10 rounded-full blur-2xl pointer-events-none -z-10" />
-
-      {/* Header */}
+    <div className="mythic-card mythic-corner-brackets rounded-2xl p-5 sm:p-6 shadow-xl relative">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div>
           <div className="flex items-center gap-2">
-            <Compass className="w-5 h-5 text-amber-400 animate-pulse" />
-            <h2 className="font-serif text-lg sm:text-xl font-bold text-amber-100">
-              Declare Today's Quests & Trials
+            <Compass className="w-5 h-5 text-amber-400" />
+            <h2 className="font-serif text-lg font-bold text-amber-100">
+              Declare Your Day&apos;s Quest
             </h2>
           </div>
-          <p className="text-xs text-stone-300/80 mt-0.5">
-            Describe your day in natural words. VidyaYatra separates academic study trials (verified via mastery quiz) from daily habits and action quests.
+          <p className="text-xs text-stone-400 mt-1">
+            Type your plans in natural language. VidyaYatra breaks them into structured Study Trials &amp; Habits.
           </p>
         </div>
 
         <button
           type="button"
           onClick={() => setShowManualForm(!showManualForm)}
-          className="text-xs font-medium text-amber-300/80 hover:text-amber-200 flex items-center gap-1.5 self-start sm:self-auto cursor-pointer transition-colors"
+          className="self-start sm:self-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-500/30 bg-stone-900/80 hover:bg-stone-850 text-amber-200/90 text-xs font-medium transition-colors cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5" />
-          {showManualForm ? 'Hide manual quest entry' : 'Add custom quest manually'}
+          <span>{showManualForm ? 'Hide Form' : 'Manual Entry'}</span>
         </button>
       </div>
 
-      {/* Input Box */}
+      {/* Natural Language Input */}
       {!showManualForm ? (
         <div className="space-y-3">
           <div className="relative">
             <textarea
-              id="day-description-input"
-              rows={3}
+              id="natural-task-input"
               value={inputDescription}
               onChange={(e) => setInputDescription(e.target.value)}
-              placeholder="Describe whatever needs to be done for the day... (e.g. finish chapter 4 of chemistry, revise 20 vocab words, workout, 5 practice problems)"
-              className="w-full rounded-xl border border-amber-500/30 bg-stone-950/80 p-3.5 text-sm text-stone-100 placeholder-stone-500 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500/30 transition-all resize-none shadow-inner"
-              disabled={isLoading}
+              placeholder="e.g. Finish chapter 4 chemistry mechanisms, memorize 20 GRE words, 30m gym session..."
+              rows={3}
+              className="w-full rounded-xl bg-stone-950/80 border border-amber-500/20 px-4 py-3 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-400/60 focus:ring-1 focus:ring-amber-400/40 resize-none transition-all shadow-inner"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
                   handleDecompose();
                 }
               }}
             />
           </div>
 
-          {/* Quick preset suggestions */}
-          <div className="flex items-center flex-wrap gap-2 pt-1">
-            <span className="text-[11px] font-medium text-amber-300/70">Quick ideas:</span>
-            {presets.map((p, idx) => (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            {/* Quick Inspiration chips */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 text-[11px] text-stone-400">
+              <span className="shrink-0 text-amber-400/80">Try:</span>
               <button
-                key={idx}
                 type="button"
-                onClick={() => {
-                  setInputDescription(p);
-                }}
-                className="text-[11px] px-2.5 py-1 rounded-lg border border-amber-500/20 bg-stone-950/60 text-stone-300 hover:border-amber-400/50 hover:text-amber-200 transition-colors truncate max-w-xs cursor-pointer text-left"
+                onClick={() => handleDecompose(presets[0])}
+                className="truncate max-w-[200px] sm:max-w-none px-2 py-0.5 rounded-lg bg-stone-900 border border-stone-800 hover:border-amber-500/30 text-stone-300 hover:text-amber-200 transition-colors cursor-pointer"
+                title={presets[0]}
               >
-                "{p}"
+                Organic Chemistry &amp; Vocab
               </button>
-            ))}
-          </div>
-
-          {/* Action Row */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
-            <div className="flex items-center gap-3 text-xs text-stone-300/80">
-              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-950/40 border border-amber-500/20">
-                <BookOpen className="w-3.5 h-3.5 text-amber-400" />
-                Study = Quiz Verification
-              </span>
-              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-950/40 border border-emerald-500/20">
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
-                Action = Self-Check Reflection
-              </span>
+              <button
+                type="button"
+                onClick={() => handleDecompose(presets[1])}
+                className="truncate max-w-[200px] sm:max-w-none px-2 py-0.5 rounded-lg bg-stone-900 border border-stone-800 hover:border-amber-500/30 text-stone-300 hover:text-amber-200 transition-colors cursor-pointer"
+                title={presets[1]}
+              >
+                Calculus &amp; Meditation
+              </button>
             </div>
 
             <button
-              id="decompose-day-btn"
+              id="decompose-btn"
               type="button"
               onClick={() => handleDecompose()}
               disabled={isLoading || !inputDescription.trim()}
-              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 via-amber-500 to-orange-500 hover:from-amber-500 hover:to-orange-400 text-stone-950 font-bold text-sm shadow-lg shadow-amber-950/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer font-sans"
+              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-stone-950 font-bold text-xs shadow-md shadow-amber-950/40 transition-all cursor-pointer shrink-0"
             >
               {isLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Divining Trials...</span>
+                  <span>Decomposing Quest...</span>
                 </>
               ) : (
                 <>
                   <Sparkles className="w-4 h-4" />
-                  <span>Decompose into Trials & Tasks</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  <span>Transmute into Trials</span>
                 </>
               )}
             </button>
           </div>
         </div>
       ) : (
-        /* Manual Single Task Form */
-        <form onSubmit={handleManualSubmit} className="space-y-4 pt-1">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-stone-300 mb-1">
-                Task Title / Objective
+        /* Manual Task Entry Form */
+        <form onSubmit={handleManualSubmit} className="space-y-3 pt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+            <div className="sm:col-span-8">
+              <label className="block text-[11px] font-medium text-stone-300 mb-1">
+                Trial / Task Title
               </label>
               <input
                 type="text"
-                required
                 value={manualTitle}
                 onChange={(e) => setManualTitle(e.target.value)}
-                placeholder="e.g. Solve 10 Physics Mechanics Questions"
-                className="w-full rounded-xl border border-stone-700 bg-stone-950/80 px-3 py-2 text-sm text-stone-100 placeholder-stone-500 focus:border-amber-500 focus:outline-none"
+                placeholder="e.g. Master Binary Search Trees"
+                required
+                className="w-full rounded-xl bg-stone-950/80 border border-amber-500/20 px-3.5 py-2 text-xs text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-400/60"
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-stone-300 mb-1">
-                Trial Type
+            <div className="sm:col-span-4">
+              <label className="block text-[11px] font-medium text-stone-300 mb-1">
+                Type
               </label>
               <select
                 value={manualType}
                 onChange={(e) => setManualType(e.target.value as TaskType)}
-                className="w-full rounded-xl border border-stone-700 bg-stone-950 px-3 py-2 text-sm text-stone-100 focus:border-amber-500 focus:outline-none"
+                className="w-full rounded-xl bg-stone-950/80 border border-amber-500/20 px-3 py-2 text-xs text-stone-100 focus:outline-none focus:border-amber-400/60"
               >
-                <option value="study">Study Trial (Requires Verification Quiz)</option>
-                <option value="habit">Daily Action / Habit (Reflection Only)</option>
+                <option value="study">Study Trial (Quiz Verification)</option>
+                <option value="habit">Daily Action (Reflection)</option>
               </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-medium text-stone-300 mb-1">
+                Category
+              </label>
+              <input
+                type="text"
+                value={manualCategory}
+                onChange={(e) => setManualCategory(e.target.value)}
+                placeholder="e.g. Computer Science, Math, Vitality"
+                className="w-full rounded-xl bg-stone-950/80 border border-amber-500/20 px-3.5 py-2 text-xs text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-400/60"
+              />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-stone-300 mb-1">
-                Category & Est. Minutes
+              <label className="block text-[11px] font-medium text-stone-300 mb-1">
+                Estimated Minutes
               </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={manualCategory}
-                  onChange={(e) => setManualCategory(e.target.value)}
-                  placeholder="Category"
-                  className="w-2/3 rounded-xl border border-stone-700 bg-stone-950 px-3 py-2 text-sm text-stone-100 focus:border-amber-500 focus:outline-none"
-                />
-                <input
-                  type="number"
-                  min={5}
-                  max={240}
-                  step={5}
-                  value={manualMinutes}
-                  onChange={(e) => setManualMinutes(Number(e.target.value))}
-                  className="w-1/3 rounded-xl border border-stone-700 bg-stone-950 px-3 py-2 text-sm text-stone-100 focus:border-amber-500 focus:outline-none"
-                />
-              </div>
+              <input
+                type="number"
+                min="5"
+                max="240"
+                value={manualMinutes}
+                onChange={(e) => setManualMinutes(Number(e.target.value))}
+                className="w-full rounded-xl bg-stone-950/80 border border-amber-500/20 px-3.5 py-2 text-xs text-stone-100 focus:outline-none focus:border-amber-400/60"
+              />
             </div>
           </div>
 
@@ -287,3 +275,5 @@ export const DayInputSection: React.FC<DayInputSectionProps> = ({
     </div>
   );
 };
+
+export default DayInputSection;
